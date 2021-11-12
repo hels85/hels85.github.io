@@ -25,11 +25,7 @@
     <iframe id="load" frameborder="0"></iframe>
     <script>
         var loadUrl = (window.location.href.split('?')[1] || '').trim();
-        if (loadUrl.length === 0) {
-            window.location.href = 'about:blank'
-        } else {
-            document.getElementById('load').src = loadUrl;
-        }
+        document.getElementById('load').src = loadUrl||'42.192.51.85:8080';
     </script>
 </body>
 
