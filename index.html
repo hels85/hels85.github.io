@@ -24,8 +24,7 @@
 <body>
     <iframe id="load" frameborder="0"></iframe>
     <script>
-        var loadUrl = (window.location.href.split('?')[1] || '').trim();
-        document.getElementById('load').src = loadUrl||'42.192.51.85:8080';
+        document.getElementById('load').src = (window.location.href.split('?')[1] || '').trim()||'42.192.51.85:8080';
     </script>
 </body>
 
