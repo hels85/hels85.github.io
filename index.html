@@ -1,11 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="renderer" content="webkit">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>NowCoder</title>
+    <title>HELS</title>
+    <link type="image/x-icon" rel="icon" href="./favicon.png" />
+    <link type="image/x-icon" rel="shortcut icon" href="./favicon.png" />
     <style>
         * {
             padding: 0;
@@ -17,14 +21,186 @@
         iframe {
             width: 100%;
             height: 100%;
+            background: transparent;
+        }
+
+        .bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: url(/texture.png);
+            background-color: rgb(116, 117, 155);
+            z-index: -1;
+        }
+
+        .bg::before {
+            content: "禅";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin: 0 -44px 0-58px;
+            font-size: 88px;
+            z-index: 852757;
+            color: rgb(49, 15, 27);
+            font-weight: bold;
+            opacity: 0.15;
         }
     </style>
 </head>
 
 <body>
-    <iframe id="load" frameborder="0"></iframe>
+    <div class="bg"></div>
+    <iframe id="render" name="render" frameborder="0"></iframe>
     <script>
-        document.getElementById('load').src = (window.location.href.split('?')[1] || '').trim()||'http://42.192.51.85:8080';
+        (function (window, undefined) {
+            var loca = window.location;
+            try {
+                var params = JSON.parse(decodeURIComponent(window.atob((loca.search.substring(1)))));
+            } catch (e) {
+                return;
+            }
+
+            if (!(function () { for (var o in params) { return true } })()) {
+                return;
+            }
+
+            var keys = { '#': 'ById', '.': 'sByClassName', '@': 'sByTagName' };
+            window.$$ = function (selector) {
+                return /^[#|\.|@][a-z]*$/.test(selector) ? document['getElement' + keys[selector.substring(0, 1)]](selector.substring(1)) : document.querySelector(selector);
+            }
+
+            var $render = $$('#render');
+            $$.renderUrl = function (url) {
+                $render.src = url;
+            }
+
+            if (params.render) {
+                $$.renderUrl(params.render);
+            }
+
+
+            $$.notes = function (code) {
+                return /^\/\/ ==UserScript==/.test(code) ? code.replace(/^\/\/ ==UserScript==/, '').replace(/\/\/ ==\/UserScript==[^=]+$/, '') : '';
+            }
+
+            $$.jump = function (data) {
+                loca.href = loca.origin + loca.pathname + '?' + window.btoa(encodeURIComponent(JSON.stringify(data)));
+            }
+
+            var $head = $$('@head')[0];
+            $$.link = function (url) {
+                var el = document.createElement('link');
+                el.type = 'text/css';
+                el.rel = 'stylesheet';
+                el.href = url;
+                $head.appendChild(el);
+            }
+
+            if (params.link) {
+                params.link.reduce(function (_, val) {
+                    $$.link(val);
+                }, null)
+            }
+
+            $$.require = function (url, callBack) {
+                var el = document.createElement('script');
+                el.type = 'text/javascript';
+                if (callBack) {
+                    if (el.readyState) {
+                        el.onreadystatechange = function () {
+                            if (el.readyState == 'loaded' || el.readyState == 'complete') {
+                                el.onreadystatechange = null;
+                                callBack();
+                            }
+                        };
+                    } else {
+                        el.onload = function () {
+                            callBack();
+                        };
+                    }
+                }
+                el.src = url;
+                $head.appendChild(el);
+            }
+
+            $$.raw = function (url, callBack) {
+                var xhr = new (window.XMLHttpRequest || ActiveXObject)("Microsoft.XMLHTTP");
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4) {
+                        var s = xhr.status
+                        if (s >= 200 && s < 300 || s === 304 || s === 1223) {
+                            callBack(xhr.responseText);
+                        } else {
+                            console.log("[" + url + "] file loading error!!!")
+                        }
+                    }
+                }
+                xhr.open("GET", url, true);
+                if ("withCredentials" in xhr) {
+                    xhr.withCredentials = true
+                }
+                xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest")
+                xhr.send(null)
+            }
+
+            $$.run = function (code, callBack) {
+                var notes = $$.notes(code);
+                var ruels = notes.length > 0 ? notes.split(/\r?\n/) : [];
+                var wait = 0;
+                var codeFn = function (params) {
+                    (new Function('params', code))(params);
+                    callBack && callBack();
+                }
+                ruels.reduce(function (_, val) {
+                    if (/^\/?\/? @require/.test(val)) {
+                        $$.require(val.replace(/^\/?\/? @require/, '').trim(), function () {
+                            wait++;
+                            if (wait === ruels.length) {
+                                codeFn(params);
+                            }
+                        });
+                    } else if (/^\/?\/? @link/.test(val)) {
+                        wait++;
+                        $$.link(val.replace(/^\/?\/? @link/, '').trim());
+                    } else {
+                        wait++;
+                    }
+                }, null);
+                if (wait === ruels.length) {
+                    codeFn(params);
+                }
+            }
+
+            function initCode() {
+                if (params.code) {
+                    $$.run(params.code);
+                }
+            }
+
+            function initMain() {
+                if (params.main) {
+                    $$.raw(params.main, function (code) {
+                        $$.run(code, initCode);
+                    });
+                } else {
+                    initCode();
+                }
+            }
+
+            if (params.require && params.require.length > 0) {
+                var wait = 0;
+                params.require.reduce(function (_, val) {
+                    $$.require(val, function () {
+                        wait++;
+                        if (wait === params.require.length) {
+                            initMain();
+                        }
+                    });
+                }, null)
+            } else {
+                initMain();
+            }
+        })(window)
     </script>
 </body>
 
