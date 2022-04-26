@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地图片预览(IE6+ 等比例缩放)-Local image preview(IE6+ equal scaling)</title>
+    <style type="text/css">
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            font-family: "Helvetica Neue", Helvetica, Tahoma, Arial, STXihei, "华文细黑", Heiti, "黑体", "Microsoft YaHei", "微软雅黑", SimSun, "宋体", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "MicrosoftYaHei", "WenQuanYi Micro Hei", sans-serif;
+            font-size: 15px;
+            overflow: hidden;
+        }
+
+        body {
+            overflow: auto;
+        }
+
+        #upload_wrapper {
+            position: relative;
+            display: inline-block;
+            font-weight: bold;
+            height: 30px;
+            line-height: 30px;
+            margin: 5px;
+            padding: 6px 15px;
+            -webkit-border-radius: 5px;
+            -moz-border-radius: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #FFF;
+            background: #43a2da;
+            border: 1px solid #EaEAEA;
+            *display: inline;
+            *zoom: 1;
+            *overflow: hidden;
+        }
+
+        #upload {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            font-size: 2333em;
+            outline: none;
+            opacity: 0;
+            border: 0;
+            -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=0)";
+            filter: alpha(opacity=0);
+            cursor: pointer;
+            _top: -4px;
+            _left: -4px;
+            _width: 2333px;
+            _height: 2333px;
+            _font-size: 2333px;
+        }
+
+        #wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 500px;
+            height: 500px;
+            margin-top: -250px;
+            margin-left: -250px;
+        }
+
+        #preview {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+        }
+    </style>
+    <script type="text/javascript">
+        (function (window, undefined) {
+            var version = parseInt((window.navigator.userAgent.toLowerCase().match(/msie ([\d.]+)/) || [-1, -1])[1]);
+            var fix = version !== -1 && version <= 9; // 判断是否为 IE6-9
+            var oldInterval, oldImgSize, initPreview = false;
+
+            function $(id) { return document.getElementById(id); };
+
+            window.onUpload = function (upload) {
+                if (!/jpg|bmp|gif|ico|pcx|jpeg|tif|png|raw|tga/.test(upload.value.toLowerCase().match(/\.[^\.]+$/)[0].substring(1))) {
+                    return;
+                }
+                var wrapper = $('wrapper');
+                if (upload.files && upload.files[0]) {
+                    if (!initPreview) {
+                        initPreview = true;
+                        wrapper.innerHTML = '<img id="preview">';
+                    }
+                    var preview = wrapper.firstChild;
+                    
+                    var reader = new FileReader();  // 借助FileReader读取Image
+                    reader.onload = function () {
+                        getImageSize(reader.result, function (w, h) {
+                            autoDisplay(preview, w, h);
+                            preview.src = reader.result;
+                        })
+                    }
+                    reader.readAsDataURL(upload.files[0]);
+                } else if (fix && upload.value.length > 0) {
+                    if (!initPreview) {
+                        initPreview = true;
+                        wrapper.innerHTML = '<div id="preview"></div>';
+                    }
+                    var preview = wrapper.firstChild;
+
+                    upload.select(); // line 119-121 绕过IE安全限制获得选中文件真实地址
+                    window.document.body.focus();
+                    var path = document.selection.createRange().text;
+
+                    getImageSize(path, function (w, h) {
+                        autoDisplay(preview, w, h); // line 124-125 等比例缩放图片,并使用IE图片滤镜特性加载本地图片
+                        preview.style.filter = 'progid:DXImageTransform.Microsoft.AlphaImageLoader(sizingMethod=scale)';
+                        preview.filters.item('DXImageTransform.Microsoft.AlphaImageLoader').src = path;
+                    })
+                }
+            }
+
+            if (!fix) {
+                document.addEventListener("dragenter", stop, false);
+                document.addEventListener("dragover", stop, false);
+                document.addEventListener("drop", drop, false);
+
+                function stop(e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+
+                function drop(e) {
+                    stop(e);
+                    var files = e.dataTransfer.files;
+                    onUpload({
+                        files: files,
+                        value: files[0].name
+                    });
+                }
+            }
+
+            function clearOldImgSize() {
+                if (oldInterval) {
+                    oldInterval = false;
+                    clearInterval(oldInterval);
+                    oldImgSize.parentNode.removeChild(oldImgSize);
+                }
+            }
+
+            function getImageSize(url, callback) {
+                if (!fix) {
+                    var img = new Image(); // 借助Image获得图片大小
+                    img.onload = function () { callback(img.width, img.height) };
+                    img.src = url;
+                } else {
+                    clearOldImgSize();
+                    var img = oldImgSize = document.createElement('img');
+                    var style = {
+                        'position': 'absolute', // line 168-171 使用绝对定位避免大分辨率图片引起的页面膨胀
+                        'top': '-999999999px',
+                        'left': '-999999999px',
+                        'visibility': 'hidden',
+                        'filter': 'progid:DXImageTransform.Microsoft.AlphaImageLoader(sizingMethod=image)'
+                    }
+                    for (var key in style) {
+                        img.style[key] = style[key];
+                    }
+                    document.body.appendChild(img);
+                    img.filters.item('DXImageTransform.Microsoft.AlphaImageLoader').src = url;
+                    var timer = 0;
+                    oldInterval = setInterval(function () { // 借助IE滤镜特性获取图片大小,但浏览器性能存在差异,故使用轮训监听加载完成状态
+                        var w = img.offsetWidth;
+                        var h = img.offsetHeight;
+                        if ((timer > 30000 && w === 28 && h === 30) || timer > 60000) { //注: 由于需要特性检测,故对于width:28,height:30的图片不能快速处理
+                            clearOldImgSize();
+                            callback(w, h);
+                            return;
+                        }
+                        if ((w > 0 && w !== 28) && (h > 0 && h !== 30)) {
+                            clearOldImgSize();
+                            callback(w, h);
+                        }
+                    }, 10)
+                }
+            }
+
+            function autoDisplay(display, width, height) {
+                var max = Math.max(width, height);
+                var w = parseInt(500 * (width / max));
+                var h = parseInt(500 * (height / max));
+                var style = {
+                    'marginTop': (h / -2) + 'px',
+                    'marginLeft': (w / -2) + 'px',
+                    'width': w + 'px',
+                    'height': h + 'px',
+                    'display': 'block'
+                }
+                for (var key in style) {
+                    preview.style[key] = style[key];
+                }
+            }
+        })(window);
+    </script>
+</head>
+
+<body>
+    <div id="upload_wrapper">
+        选择文件
+        <input type="file" id="upload" accept="*/*" onchange="onUpload(this)">
+    </div>
+    <div id="wrapper"></div>
+</body>
+
+</html>
